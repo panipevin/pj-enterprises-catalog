@@ -240,7 +240,7 @@ dec(d){const c=cart.find(c=>c.id===d.id);if(c&&--c.qty<1)cart=cart.filter(x=>x!=
 saveq(){if(!cust.n.trim()||ph(cust.p).length!==10){err='Enter customer name and a 10-digit phone number';return render()}err='';S.qn=(S.qn||0)+1;
 S.quotes.unshift({id:'Q'+String(S.qn).padStart(3,'0'),date:new Date().toLocaleDateString('en-IN'),cn:cust.n.trim(),cp:ph(cust.p),by:me.id,status:'Draft',total:cartTotal(),items:cart.map(c=>{const p=prod(c.id);return{n:p.name,pr:p.price,qty:c.qty,pk:p.pack}})});
 if(!S.users.some(u=>u.role==='customer'&&u.u===ph(cust.p)))S.users.push({u:ph(cust.p),role:'customer',name:cust.n.trim()});save();cart=[];cust={n:'',p:''};render();try{showReceipt(S.quotes[0])}catch(e){tab='quotes';render()}},
-saveprod(){const n=$('#pn').value.trim(),pv=$('#pp').value,mv=$('#pm').value;if(!n||pv===''||mv===''){$('#fe').textContent='Please fill name, MRP and wholesale price';return}const pp=Math.max(1,+$('#ppp').value||1),ps=$('#ps').value,pq=$('#pqb').value;const o={name:n,cat:$('#pc').value,mrp:+mv,pack:$('#pk').value,price:+pv,stock:ps!==''?+ps:pq!==''?Math.round(+pq*pp):0,ppp:pp,img:pImg||''};
+saveprod(){const n=$('#pn').value.trim(),pw=$('#pp').value,mv=$('#pm').value;if(!n||pw===''||mv===''){$('#fe').textContent='Please fill name, MRP and wholesale price';return}const pp=Math.max(1,+$('#ppp').value||1),ps=$('#ps').value,pq=$('#pqb').value;const o={name:n,cat:$('#pc').value,mrp:+mv,pack:$('#pk').value,price:+pw,stock:ps!==''?+ps:pq!==''?Math.round(+pq*pp):0,ppp:pp,img:pImg||''};
 if(editId)Object.assign(prod(editId),o);else S.products.push({id:'p'+Date.now().toString(36),...o});editId=null;pv='list';save();render();toast('Product saved')},
 edit(d){editId=d.id;pv='prod';tab='purchase';render();scrollTo(0,0)},canc(){editId=null;pv='list';render()},
 del(d){if(delId===d.id){S.products=S.products.filter(p=>p.id!==d.id);cart=cart.filter(c=>c.id!==d.id);delId=null;save()}else delId=d.id;render()},
@@ -290,14 +290,14 @@ const idle=()=>!$('#rp')&&!$('#qm')&&!(document.activeElement&&/INPUT|SELECT|TEX
 function queueSync(){if(!CFG.url)return;clearTimeout(qt);qt=setTimeout(sync,700)}
 async function call(b){const c=new AbortController(),t=setTimeout(()=>c.abort(),25000);try{const r=await fetch(CFG.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:tok,...b}),signal:c.signal}),j=await r.json();if(j.error){if(j.code==='auth')authLost();throw new Error(j.error)}return j}finally{clearTimeout(t)}}
 function adopt(st){for(const c in SC)S[c]=st[c]||[];S.qn=Math.max(S.qn||0,st.qn||0);S.bn=Math.max(S.bn||0,st.bn||0);if(me&&!S.users.some(u=>u.u===me.id&&u.role===me.role)){me=null;sv()}}
-const wipe=()=>{S=seed();base=null;ver=-1;cart=[];try{localStorage.removeItem(K);localStorage.removeItem(K+'_base')}catch(e){}};
+const wipe=()=>{S=seed();base=null;ver=-1;cart=[];needSetup=false;try{localStorage.removeItem(K);localStorage.removeItem(K+'_base')}catch(e){}};
 function authLost(){tok='';try{localStorage.removeItem(K+'_t')}catch(e){}wipe();me=null;sv();lbusy=false;err='Please sign in again';render()}
 async function enter(r){tok=r.token;try{localStorage.setItem(K+'_t',tok)}catch(e){}wipe();me={role:r.user.role,id:r.user.u,name:r.user.name};sv();tab=me.role==='owner'?'dash':'catalog';lbusy=false;err='';await sync();render()}
 function boot(){if(me&&!tok){me=null;sv()}if(!CFG.url){render();return}if(me&&tok){render();sync();return}needSetup=null;err='';render();call({a:'status'}).then(r=>{needSetup=!!r.needSetup;render()}).catch(e=>{err='Could not reach the server: '+e.message;render()})}
 function redraw(){if(idle()){needR=false;render()}else needR=true}
 async function sync(){if(!CFG.url||!tok||!me)return;if(busyS){again=true;return}busyS=true;setSy('⏳ Syncing…');
-try{if(!base){const r=await call({since:-1,ops:[]});if(r.v>0&&Object.keys(SC).some(c=>(r.state[c]||[]).length)){adopt(r.state);ver=r.v;base=snap();saveBase();save0();redraw();setSy('✅ Synced');return}base={}}
-const ops=dif(base),sent=snap(),r=await call({since:ver,ops,cnt:{qn:S.qn||0,bn:S.bn||0}});
+try{if(!base){const r=await call({a:'sync',since:-1,ops:[]});if(r.v>0&&Object.keys(SC).some(c=>(r.state[c]||[]).length)){adopt(r.state);ver=r.v;base=snap();saveBase();save0();redraw();setSy('✅ Synced');return}base={}}
+const ops=dif(base),sent=snap(),r=await call({a:'sync',since:ver,ops,cnt:{qn:S.qn||0,bn:S.bn||0}});
 if(r.state){const later=dif(sent);adopt(r.state);ver=r.v;base=snap();saveBase();putOps(later);if(later.length)again=true;save0();redraw()}else ver=r.v;
 setSy('✅ Synced')}catch(e){setSy('⚠️ Offline · tap to retry')}finally{busyS=false;if(again){again=false;setTimeout(sync,300)}}}
 if(CFG.url){setInterval(()=>{if(needR&&idle())redraw();if(!document.hidden)sync()},12000);addEventListener('focus',sync);addEventListener('online',sync)}
